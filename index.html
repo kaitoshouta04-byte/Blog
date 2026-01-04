@@ -15,7 +15,11 @@ body.dark{
 --bg:#0b0e16;--card:#121827;--text:#eee;--muted:#9aa0b4;
 --accent:#818cf8;--border:#1f2937
 }
-body{font-family:Inter,system-ui;background:var(--bg);color:var(--text);transition:.3s}
+body{
+font-family:Inter,system-ui;
+background:var(--bg);color:var(--text);
+transition:.3s
+}
 header{
 position:sticky;top:0;z-index:10;
 backdrop-filter:blur(14px);
@@ -88,10 +92,8 @@ footer{text-align:center;padding:40px;color:var(--muted)}
 <div class="logo">SERVERBLOG</div>
 <nav>
 <button onclick="go('home')">Home</button>
-<button id="uploadBtn" onclick="go('upload')" style="display:none">Upload</button>
+<button onclick="go('upload')">Upload</button>
 <button onclick="toggleMode()">Mode</button>
-<button id="loginBtn" onclick="login()">Login</button>
-<button id="logoutBtn" onclick="logout()" style="display:none">Logout</button>
 </nav>
 </div>
 </header>
@@ -125,60 +127,24 @@ footer{text-align:center;padding:40px;color:var(--muted)}
 
 <footer>© 2026 Modern Server Blog</footer>
 
-<!-- ================= FIREBASE ================= -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
 import {
 getFirestore, collection, addDoc, onSnapshot,
 deleteDoc, doc, updateDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
-import {
-getAuth, GoogleAuthProvider,
-signInWithPopup, signOut, onAuthStateChanged
-} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
 
-/* 🔑 KONFIGURASI FIREBASE ANDA */
+/* FIREBASE CONFIG */
 const firebaseConfig = {
 apiKey: "AIzaSyCA2XBYGvLM_s5WsX3pfxq1h8U-59c0qN4",
 authDomain: "modern-blog-32299.firebaseapp.com",
 projectId: "modern-blog-32299"
 };
 
-/* 🔒 GANTI UID ADMIN */
-const ADMIN_UID = "GANTI_UID_ADMIN_ANDA";
-
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
-const auth = getAuth(app);
-const provider = new GoogleAuthProvider();
 
-let posts=[],editId=null,filter="",isAdmin=false;
-
-/* ===== AUTH FIX (ANTI LAYAR HITAM) ===== */
-onAuthStateChanged(auth,user=>{
-isAdmin = user && user.uid === ADMIN_UID;
-
-uploadBtn.style.display = isAdmin ? "inline" : "none";
-loginBtn.style.display = user ? "none" : "inline";
-logoutBtn.style.display = user ? "inline" : "none";
-
-go("home");
-});
-
-/* LOGIN / LOGOUT */
-window.login = async ()=>{
-try{
-await signInWithPopup(auth,provider);
-go("home");
-}catch{
-alert("Login dibatalkan");
-go("home");
-}
-}
-window.logout = async ()=>{
-await signOut(auth);
-go("home");
-}
+let posts=[],editId=null,filter="";
 
 /* REALTIME DATA */
 onSnapshot(query(collection(db,"posts"),orderBy("time","desc")),snap=>{
@@ -217,7 +183,6 @@ ${p.image?`<img src="${p.image}">`:""}
 
 /* CRUD */
 window.save=()=>{
-if(!isAdmin)return alert("Akses ditolak");
 if(!title.value||!content.value)return alert("Lengkapi data");
 const file=image.files[0];
 if(file){
@@ -248,17 +213,15 @@ view.innerHTML=`
 <span>${p.category}</span>
 ${p.image?`<img src="${p.image}">`:""}
 <p>${p.content.replace(/\n/g,"<br>")}</p>
-${isAdmin?`
 <div class="actions">
 <button class="btn" onclick="editPost('${id}')">Edit</button>
 <button class="btn secondary" onclick="deletePost('${id}')">Hapus</button>
-</div>`:""}
+</div>
 `;
 go('post');
 }
 
 window.editPost=id=>{
-if(!isAdmin)return;
 const p=posts.find(x=>x.id===id);
 title.value=p.title;
 category.value=p.category;
@@ -268,7 +231,6 @@ go('upload');
 }
 
 window.deletePost=id=>{
-if(!isAdmin)return;
 if(confirm("Hapus artikel?")){
 deleteDoc(doc(db,"posts",id));
 go('home');
