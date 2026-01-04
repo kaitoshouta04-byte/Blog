@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Modern Server Blog</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#f4f6fb;--card:#fff;--text:#111;--muted:#666;
+--accent:#6366f1;--border:#e5e7eb
+}
+body.dark{
+--bg:#0b0e16;--card:#121827;--text:#eee;--muted:#9aa0b4;
+--accent:#818cf8;--border:#1f2937
+}
+body{font-family:Inter,system-ui;background:var(--bg);color:var(--text);transition:.4s}
+header{position:sticky;top:0;z-index:10;
+backdrop-filter:blur(14px);
+background:rgba(255,255,255,.7);
+border-bottom:1px solid var(--border)}
+body.dark header{background:rgba(10,14,25,.7)}
+.container{max-width:1000px;margin:auto;padding:28px}
+.nav{display:flex;justify-content:space-between;align-items:center}
+.logo{font-weight:800;letter-spacing:3px;color:var(--accent)}
+nav button{margin-left:14px;border:none;background:none;
+color:var(--muted);cursor:pointer;font-weight:500}
+nav button:hover{color:var(--accent)}
+.page{display:none;animation:fade .5s}
+.page.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(8px)}}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:26px}
+.card{background:var(--card);border-radius:18px;
+box-shadow:0 14px 40px rgba(0,0,0,.08);
+cursor:pointer;overflow:hidden;transition:.35s}
+.card:hover{transform:translateY(-6px)}
+.card img{width:100%;height:170px;object-fit:cover}
+.card .c{padding:18px}
+.card h3{font-size:17px}
+.card span{font-size:13px;color:var(--muted)}
+.post{background:var(--card);border-radius:22px;
+padding:34px;box-shadow:0 16px 50px rgba(0,0,0,.1)}
+.post img{width:100%;border-radius:16px;margin:24px 0}
+.post h1{font-size:34px}
+.post p{font-size:18px;line-height:1.8;margin-top:18px}
+input,textarea,select{
+width:100%;padding:14px;margin-bottom:14px;
+border-radius:14px;border:1px solid var(--border);
+background:transparent;color:var(--text)}
+textarea{min-height:160px}
+.btn{padding:10px 18px;border-radius:12px;
+border:none;background:var(--accent);color:#fff;
+font-weight:600;cursor:pointer}
+.btn.secondary{background:none;color:var(--muted);
+border:1px solid var(--border)}
+.actions{margin-top:18px}
+.actions .btn{margin-right:10px}
+footer{text-align:center;padding:40px;color:var(--muted)}
+</style>
+</head>
+
+<body>
+
+<header>
+<div class="nav container">
+<div class="logo">SERVERBLOG</div>
+<nav>
+<button onclick="go('home')">Home</button>
+<button id="uploadBtn" onclick="go('upload')" style="display:none">Upload</button>
+<button onclick="toggleMode()">Mode</button>
+<button id="loginBtn" onclick="login()">Login</button>
+<button id="logoutBtn" onclick="logout()" style="display:none">Logout</button>
+</nav>
+</div>
+</header>
+
+<section id="home" class="page active">
+<div class="container">
+<select onchange="filter=this.value;render()"></select>
+</div>
+<div class="container grid" id="list"></div>
+</section>
+
+<section id="post" class="page">
+<div class="container">
+<article class="post" id="view"></article>
+</div>
+</section>
+
+<section id="upload" class="page">
+<div class="container post">
+<h2>Upload / Edit Artikel</h2><br>
+<input id="title" placeholder="Judul">
+<input id="category" placeholder="Kategori">
+<input type="file" id="image" accept="image/*">
+<textarea id="content" placeholder="Isi artikel"></textarea>
+<div class="actions">
+<button class="btn" onclick="save()">Simpan</button>
+<button class="btn secondary" onclick="resetForm()">Reset</button>
+</div>
+</div>
+</section>
+
+<footer>© 2026 Modern Server Blog</footer>
+
+<!-- ================= FIREBASE MODULE ================= -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.7.0/firebase-app.js";
+import {
+getFirestore, collection, addDoc, onSnapshot,
+deleteDoc, doc, updateDoc, query, orderBy
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-firestore.js";
+import {
+getAuth, GoogleAuthProvider,
+signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.7.0/firebase-auth.js";
+
+/* 🔑 CONFIG ANDA */
+const firebaseConfig = {
+apiKey: "AIzaSyCA2XBYGvLM_s5WsX3pfxq1h8U-59c0qN4",
+authDomain: "modern-blog-32299.firebaseapp.com",
+projectId: "modern-blog-32299"
+};
+
+/* 🔒 GANTI DENGAN UID ADMIN */
+const ADMIN_UID = "GANTI_UID_ADMIN";
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+let posts=[],editId=null,filter="",isAdmin=false;
+
+/* AUTH */
+onAuthStateChanged(auth,user=>{
+isAdmin = user && user.uid === ADMIN_UID;
+uploadBtn.style.display = isAdmin ? "inline" : "none";
+loginBtn.style.display = user ? "none" : "inline";
+logoutBtn.style.display = user ? "inline" : "none";
+});
+
+/* LOGIN */
+window.login = ()=>signInWithPopup(auth,provider);
+window.logout = ()=>signOut(auth);
+
+/* DATA REALTIME */
+onSnapshot(query(collection(db,"posts"),orderBy("time","desc")),snap=>{
+posts=snap.docs.map(d=>({id:d.id,...d.data()}));
+render();
+});
+
+/* UI */
+window.go=p=>{
+document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+document.getElementById(p).classList.add('active');
+scrollTo(0,0);
+}
+window.toggleMode=()=>{
+document.body.classList.toggle('dark');
+localStorage.theme=document.body.classList.contains('dark');
+}
+if(localStorage.theme==="true")document.body.classList.add('dark');
+
+/* RENDER */
+window.render=()=>{
+list.innerHTML="";
+const sel=document.querySelector("select");
+const cats=[...new Set(posts.map(p=>p.category))];
+sel.innerHTML='<option value="">Semua Kategori</option>';
+cats.forEach(c=>sel.innerHTML+=`<option>${c}</option>`);
+posts.forEach(p=>{
+if(filter && p.category!==filter)return;
+list.innerHTML+=`
+<div class="card" onclick="openPost('${p.id}')">
+${p.image?`<img src="${p.image}">`:""}
+<div class="c"><h3>${p.title}</h3><span>${p.category}</span></div>
+</div>`;
+});
+}
+
+/* CRUD */
+window.save=()=>{
+if(!isAdmin)return alert("Akses ditolak");
+if(!title.value||!content.value)return alert("Lengkapi data");
+const file=image.files[0];
+if(file){
+const r=new FileReader();
+r.onload=()=>finalSave(r.result);
+r.readAsDataURL(file);
+}else finalSave(null);
+}
+
+function finalSave(img){
+const data={title:title.value,category:category.value,
+content:content.value,image:img,time:Date.now()};
+editId
+? updateDoc(doc(db,"posts",editId),data)
+: addDoc(collection(db,"posts"),data);
+resetForm();go('home');
+}
+
+window.openPost=id=>{
+const p=posts.find(x=>x.id===id);
+view.innerHTML=`
+<h1>${p.title}</h1>
+<span>${p.category}</span>
+${p.image?`<img src="${p.image}">`:""}
+<p>${p.content.replace(/\n/g,"<br>")}</p>
+${isAdmin?`
+<div class="actions">
+<button class="btn" onclick="editPost('${id}')">Edit</button>
+<button class="btn secondary" onclick="deletePost('${id}')">Hapus</button>
+</div>`:""}
+`;
+go('post');
+}
+
+window.editPost=id=>{
+if(!isAdmin)return;
+const p=posts.find(x=>x.id===id);
+title.value=p.title;
+category.value=p.category;
+content.value=p.content;
+editId=id;
+go('upload');
+}
+
+window.deletePost=id=>{
+if(!isAdmin)return;
+if(confirm("Hapus artikel?")){
+deleteDoc(doc(db,"posts",id));
+go('home');
+}
+}
+
+window.resetForm=()=>{
+title.value=category.value=content.value="";
+image.value="";editId=null;
+}
+</script>
+
+</body>
+</html>
